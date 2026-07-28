@@ -12,7 +12,6 @@ spec:
   ingress:
     - {}
 ---
-# allow anything to reach grafana (so you can view dashboards)
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
