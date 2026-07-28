@@ -1,0 +1,4 @@
+*secret*.yaml
+*.tar
+server.key
+server.crt

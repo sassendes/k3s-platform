@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-backup
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: postgres:16
+              envFrom:
+                - secretRef:
+                    name: postgres-secret
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -e
+                  STAMP=$(date +%Y-%m-%d_%H-%M-%S)
+                  FILE="/backups/vetclinic-$STAMP.sql"
+                  echo "starting dump -> $FILE"
+                  PGPASSWORD=$POSTGRES_PASSWORD pg_dump -h postgres -U $POSTGRES_USER -d $POSTGRES_DB > "$FILE"
+
+                  # verify: file exists and isn't tiny/empty
+                  if [ ! -s "$FILE" ] || [ $(wc -l < "$FILE") -lt 10 ]; then
+                    echo "BACKUP FAILED verification, deleting bad file"
+                    rm -f "$FILE"
+                    exit 1
+                  fi
+                  echo "backup verified good"
+
+                  # rotate: keep newest 3, delete older (only runs after a good backup)
+                  cd /backups
+                  ls -1t vetclinic-*.sql | tail -n +4 | xargs -r rm -f
+                  echo "rotation done, current backups:"
+                  ls -1t vetclinic-*.sql
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: backup-pvc

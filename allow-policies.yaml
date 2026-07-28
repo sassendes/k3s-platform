@@ -1,0 +1,41 @@
+# allow anything to reach the app (needed for ingress/browser access)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-vetclinic
+spec:
+  podSelector:
+    matchLabels:
+      app: vetclinic
+  policyTypes:
+    - Ingress
+  ingress:
+    - {}
+---
+# allow anything to reach grafana (so you can view dashboards)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-grafana
+spec:
+  podSelector:
+    matchLabels:
+      app: grafana
+  policyTypes:
+    - Ingress
+  ingress:
+    - {}
+---
+# allow anything to reach prometheus (so grafana + you can query it)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Ingress
+  ingress:
+    - {}

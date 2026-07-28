@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vetnote — Patient Records</title>
+<style>
+  :root {
+    --ink: #12211d; --paper: #f6f4ee; --card: #fffdf8;
+    --line: #d9d4c7; --moss: #2f6b4d;
+    --clay: #b8563f; --muted: #6f6a5d;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    background: var(--paper); color: var(--ink);
+    line-height: 1.5; padding: 0 0 80px;
+  }
+  header {
+    border-bottom: 2px solid var(--ink);
+    padding: 20px 32px; display: flex;
+    align-items: baseline; justify-content: space-between;
+    background: var(--card);
+  }
+  header h1 { font-size: 26px; letter-spacing: -0.5px; font-weight: 700; }
+  header h1 span { color: var(--moss); }
+  header .tag {
+    font-family: ui-monospace, Menlo, monospace;
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 2px; color: var(--muted);
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 32px; }
+  .bar {
+    display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;
+  }
+  input, select, button, textarea {
+    font: inherit; padding: 9px 12px;
+    border: 1px solid var(--line); border-radius: 3px;
+    background: var(--card); color: var(--ink);
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--moss); outline-offset: -1px;
+  }
+  button {
+    background: var(--moss); color: #fff; border: none;
+    cursor: pointer; font-weight: 600; letter-spacing: 0.3px;
+  }
+  button:hover { background: #26543c; }
+  button.ghost { background: none; color: var(--clay); border: 1px solid var(--line); }
+  button.ghost:hover { background: #f0ebe0; }
+  #search { flex: 1; min-width: 180px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); }
+  th {
+    text-align: left; font-family: ui-monospace, Menlo, monospace;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--muted); padding: 10px 12px;
+    border-bottom: 2px solid var(--ink);
+  }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--line); font-size: 15px; }
+  tr:hover td { background: #faf8f1; }
+  .species { font-weight: 600; color: var(--moss); }
+  .row-actions button { padding: 4px 9px; font-size: 12px; margin-left: 4px; }
+  .count { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  dialog {
+    border: 1px solid var(--ink); border-radius: 4px; padding: 0;
+    max-width: 480px; width: 92%; background: var(--card);
+  }
+  dialog::backdrop { background: rgba(18,33,29,0.4); }
+  .modal-head { padding: 18px 22px; border-bottom: 1px solid var(--line); font-size: 18px; font-weight: 700; }
+  .modal-body { padding: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-body label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
+  .modal-body .full { grid-column: 1 / -1; }
+  .modal-foot { padding: 16px 22px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 10px; }
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vet<span>note</span></h1>
+  <div class="tag">Patient Records · SAMCloud</div>
+</header>
+<div class="wrap">
+  <div class="bar">
+    <input id="search" placeholder="Search by name, species, or owner...">
+    <button onclick="openForm()">+ New patient</button>
+  </div>
+  <div class="count" id="count"></div>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Species</th><th>Breed</th><th>Sex</th><th>Age</th><th>Weight</th><th>Owner</th><th></th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">No patients on file. Add the first one.</div>
+</div>
+
+<dialog id="dlg">
+  <div class="modal-head" id="dlgTitle">New patient</div>
+  <div class="modal-body">
+    <label>Name<input id="f_name"></label>
+    <label>Species<input id="f_species"></label>
+    <label>Breed<input id="f_breed"></label>
+    <label>Sex
+      <select id="f_sex"><option value="">—</option><option>M</option><option>F</option><option>unknown</option></select>
+    </label>
+    <label>Age<input id="f_age" type="number"></label>
+    <label>Weight (kg)<input id="f_weight" type="number" step="0.1"></label>
+    <label>Owner name<input id="f_owner_name"></label>
+    <label>Owner phone<input id="f_owner_phone"></label>
+    <label class="full">Medical notes<textarea id="f_medical_notes" rows="2"></textarea></label>
+  </div>
+  <div class="modal-foot">
+    <button class="ghost" onclick="dlg.close()">Cancel</button>
+    <button onclick="save()">Save patient</button>
+  </div>
+</dialog>
+
+<script>
+const API = "";
+const KEY = "supersecretkey123";
+const H = { "Authorization": "Bearer " + KEY, "Content-Type": "application/json" };
+let all = [], editId = null;
+const dlg = document.getElementById('dlg');
+
+async function load() {
+  const r = await fetch(API + "/animals", { headers: H });
+  all = await r.json();
+  render();
+}
+function render() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const list = all.filter(a =>
+    (a.name||"").toLowerCase().includes(q) ||
+    (a.species||"").toLowerCase().includes(q) ||
+    (a.owner_name||"").toLowerCase().includes(q));
+  document.getElementById('count').textContent = list.length + " of " + all.length + " patients";
+  document.getElementById('empty').style.display = all.length ? "none" : "block";
+  document.getElementById('rows').innerHTML = list.map(a => `
+    <tr>
+      <td><strong>${esc(a.name)}</strong></td>
+      <td class="species">${esc(a.species)}</td>
+      <td>${esc(a.breed)||"—"}</td>
+      <td>${esc(a.sex)||"—"}</td>
+      <td>${a.age??"—"}</td>
+      <td>${a.weight?a.weight+" kg":"—"}</td>
+      <td>${esc(a.owner_name)}</td>
+      <td class="row-actions">
+        <button class="ghost" onclick='openForm(${a.id})'>Edit</button>
+        <button class="ghost" onclick='del(${a.id})'>Delete</button>
+      </td>
+    </tr>`).join("");
+}
+function esc(s){ return s==null?"":String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function openForm(id) {
+  editId = id ?? null;
+  document.getElementById('dlgTitle').textContent = id ? "Edit patient" : "New patient";
+  const a = id ? all.find(x=>x.id===id) : {};
+  for (const f of ['name','species','breed','sex','age','weight','owner_name','owner_phone','medical_notes'])
+    document.getElementById('f_'+f).value = a[f] ?? "";
+  dlg.showModal();
+}
+async function save() {
+  const body = {};
+  for (const f of ['name','species','breed','sex','age','weight','owner_name','owner_phone','medical_notes']) {
+    let v = document.getElementById('f_'+f).value;
+    if (v==="") { body[f]=null; continue; }
+    if (f==="age") v=parseInt(v); if (f==="weight") v=parseFloat(v);
+    body[f]=v;
+  }
+  const url = editId ? API+"/animals/"+editId : API+"/animals";
+  const method = editId ? "PUT" : "POST";
+  const r = await fetch(url, { method, headers: H, body: JSON.stringify(body) });
+  if (r.ok) { dlg.close(); load(); } else { alert("Save failed: " + await r.text()); }
+}
+async function del(id) {
+  if (!confirm("Delete this patient record?")) return;
+  const r = await fetch(API+"/animals/"+id, { method:"DELETE", headers: H });
+  if (r.ok) load(); else alert("Delete failed");
+}
+document.getElementById('search').addEventListener('input', render);
+load();
+</script>
+</body>
+</html>

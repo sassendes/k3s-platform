@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vetclinic
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vetclinic
+  template:
+    metadata:
+      labels:
+        app: vetclinic
+    spec:
+      containers:
+        - name: vetclinic
+          image: docker.io/library/vetclinic:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: DATABASE_URL
+              value: "postgres://vetadmin:$(DB_PASS)@postgres:5432/vetclinic?sslmode=require"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secret
+                  key: API_KEY
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vetclinic
+spec:
+  type: NodePort
+  selector:
+    app: vetclinic
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30080

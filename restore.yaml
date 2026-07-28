@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-restore
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: restore
+          image: postgres:16
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              LATEST=$(ls -1t /backups/vetclinic-*.sql | head -n1)
+              echo "restoring from $LATEST"
+              PGPASSWORD=$POSTGRES_PASSWORD psql -h postgres -U $POSTGRES_USER -d $POSTGRES_DB < "$LATEST"
+              echo "restore complete"
+          volumeMounts:
+            - name: backup-storage
+              mountPath: /backups
+      volumes:
+        - name: backup-storage
+          persistentVolumeClaim:
+            claimName: backup-pvc
