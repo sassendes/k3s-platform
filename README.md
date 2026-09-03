@@ -1,16 +1,7 @@
 # k3s-platform
 
 A small managed-hosting platform on a two-node Kubernetes cluster. It runs a real
-application with a database, watches itself, backs itself up, and heals itself when
-something dies. You declare the state you want in YAML and the cluster spends the
-rest of its life making reality match.
-
-It runs on the same idea every large infrastructure runs on: reconciliation. Google
-open-sourced Kubernetes in 2014 out of their internal Borg system, and the core of it
-is a control loop that continuously drives the cluster toward a declared desired
-state. Nothing here is clicked into place by hand. Every component is a file, and the
-files are the system.
-
+application with a database, watches itself, backs itself up.
 ## What it is
 
 Bare-metal Proxmox host, two Debian VMs, k3s across both: one control-plane, one
@@ -51,11 +42,6 @@ scoped:
 
 ## Why the backup ordering matters
 
-The rule is that a bad backup must never cost you a good one. The job dumps the
-database, checks the dump is non-empty and structurally real, and only then deletes
-the oldest copy to make room. A failure anywhere before the check exits without
-touching the existing backups. Verification runs before rotation, never after, and
-that ordering is the whole guarantee.
 
 ## Layout
 
